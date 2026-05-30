@@ -1,7 +1,11 @@
+const { Markup } = require('telegraf');
 const { Chess } = require('chess.js');
 const store = require('./store');
 const ui = require('./ui');
 const { getPuzzle, getTitle, getRandomPuzzleIndex } = require('./puzzles');
+const { getEndgame } = require('./endgames');
+const profile = require('./profile');
+const quests = require('./quests');
 
 function getStats(userId) {
   const session = store.getSession(userId);
@@ -11,7 +15,12 @@ function getStats(userId) {
   return session.puzzleStats;
 }
 
-function buildPuzzleMessage(puzzle, stats) {
+function getActivePuzzle(session) {
+  if (session.mode === 'endgame') return getEndgame(session.endgameIndex);
+  return getPuzzle(session.puzzleIndex);
+}
+
+function buildPuzzleMessage(puzzle, stats, extra = '') {
   const colorLabel = puzzle.color === 'w' ? 'білих' : 'чорних';
   const board = ui.renderBoard(puzzle.fen, puzzle.color);
   const title = getTitle(stats.solved);
@@ -19,7 +28,7 @@ function buildPuzzleMessage(puzzle, stats) {
   return (
     `🧩 *${puzzle.title}* · ${title}\n` +
     `🔥 Серія: ${stats.streak} · 🏆 Рекорд: ${stats.bestStreak} · ✅ Вирішено: ${stats.solved}\n\n` +
-    `🎯 Хід *${colorLabel}*. Знайди найсильніший хід!\n\n` +
+    `🎯 Хід *${colorLabel}*. Знайди найсильніший хід!${extra}\n\n` +
     `\`\`\`\n${board}\n\`\`\``
   );
 }
@@ -52,9 +61,19 @@ async function startRandomPuzzle(ctx, userId) {
 
 async function handlePuzzleSquare(ctx, userId, square) {
   const session = store.getSession(userId);
-  const puzzle = getPuzzle(session.puzzleIndex);
+  if (!['puzzle', 'endgame', 'rush'].includes(session.mode)) {
+    await ctx.answerCbQuery('Немає активної загадки.');
+    return;
+  }
+
+  const puzzle = getActivePuzzle(session);
   const stats = getStats(userId);
   const chess = new Chess(puzzle.fen);
+
+  if (session.mode === 'rush' && Date.now() > session.rushEnd) {
+    await finishRush(ctx, userId, session);
+    return;
+  }
 
   if (chess.turn() !== puzzle.color) {
     await ctx.answerCbQuery('Помилка позиції.');
@@ -70,7 +89,14 @@ async function handlePuzzleSquare(ctx, userId, square) {
       return;
     }
     session.selectedSquare = square;
-    const text = buildPuzzleMessage(puzzle, stats);
+    const extra =
+      session.mode === 'rush'
+        ? `\n\n⏱️ ${rushTimeLeft(session)} · 🔥 ${session.rushScore || 0}`
+        : '';
+    const text =
+      session.mode === 'endgame'
+        ? `👑 *${puzzle.title}*\n\n\`\`\`\n${ui.renderBoard(puzzle.fen, puzzle.color)}\n\`\`\``
+        : buildPuzzleMessage(puzzle, stats, extra);
     const keyboard = ui.getPuzzleKeyboard(puzzle.fen, puzzle.color, square);
     await ctx.editMessageText(text, {
       parse_mode: 'Markdown',
@@ -81,71 +107,113 @@ async function handlePuzzleSquare(ctx, userId, square) {
   }
 
   const expected = puzzle.solution[session.puzzleStep];
-  const correct =
-    session.selectedSquare === expected.from && square === expected.to;
-
+  const correct = session.selectedSquare === expected.from && square === expected.to;
   session.selectedSquare = null;
 
   if (!correct) {
-    stats.streak = 0;
+    if (session.mode !== 'rush') stats.streak = 0;
     await ctx.answerCbQuery('❌ Не те! Спробуй ще.');
-    const colorLabel = puzzle.color === 'w' ? 'білих' : 'чорних';
     const board = ui.renderBoard(puzzle.fen, puzzle.color);
-    const text =
-      `😔 *Майже!*\n\n${puzzle.explanation}\n\n` +
-      `🎯 Хід *${colorLabel}*:\n\n\`\`\`\n${board}\n\`\`\``;
-    const keyboard = ui.getPuzzleKeyboard(puzzle.fen, puzzle.color, null);
-    await ctx.editMessageText(text, {
-      parse_mode: 'Markdown',
-      reply_markup: keyboard.reply_markup,
-    });
+    await ctx.editMessageText(
+      `😔 *Майже!*\n\n${puzzle.explanation}\n\n\`\`\`\n${board}\n\`\`\``,
+      { parse_mode: 'Markdown', ...ui.getPuzzleKeyboard(puzzle.fen, puzzle.color, null) }
+    );
     return;
   }
 
   session.puzzleStep += 1;
-
   if (session.puzzleStep < puzzle.solution.length) {
     await ctx.answerCbQuery('✅ Вірно! Продовжуй...');
+    return;
+  }
+
+  await ctx.answerCbQuery('🎉 Вірно!');
+
+  if (session.mode === 'rush') {
+    session.rushScore = (session.rushScore || 0) + 1;
+    if (Date.now() >= session.rushEnd) {
+      await finishRush(ctx, userId, session);
+      return;
+    }
+    session.puzzleIndex = getRandomPuzzleIndex(session.puzzleIndex);
+    session.puzzleStep = 0;
+    const next = getPuzzle(session.puzzleIndex);
+    const board = ui.renderBoard(next.fen, next.color);
+    await ctx.editMessageText(
+      `⏱️ *Бліц* · ⏳ ${rushTimeLeft(session)} · 🔥 *${session.rushScore}*\n\n` +
+        `🧩 ${next.title}\n\n\`\`\`\n${board}\n\`\`\``,
+      { parse_mode: 'Markdown', ...ui.getPuzzleKeyboard(next.fen, next.color, null) }
+    );
+    return;
+  }
+
+  if (session.mode === 'endgame') {
+    profile.addXp(userId, 20, ctx);
+    const p = profile.getProfile(userId);
+    quests.markQuest(p, 'puzzle');
+    await ctx.editMessageText(
+      `✅ *${puzzle.explanation}*\n\n+20 XP`,
+      {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([
+          [Markup.button.callback('➡️ Наступний ендшпіль', 'menu:endgames')],
+          [Markup.button.callback('◀️ Меню', 'back:menu')],
+        ]),
+      }
+    );
+    session.mode = 'menu';
     return;
   }
 
   stats.solved += 1;
   stats.streak += 1;
   if (stats.streak > stats.bestStreak) stats.bestStreak = stats.streak;
-
-  const milestone =
-    stats.streak === 3
-      ? '\n\n🔥 *3 вірних поспіль — ти в ударі!*'
-      : stats.streak === 5
-        ? '\n\n⚡ *5 поспіль — справжній тактик!*'
-        : stats.streak === 10
-          ? '\n\n👑 *10 поспіль — легенда!*'
-          : '';
-
-  await ctx.answerCbQuery('🎉 Вірно!');
+  const xpGain = profile.onPuzzleSolved(userId, stats.streak);
+  const p = profile.getProfile(userId);
+  quests.markQuest(p, 'puzzle');
 
   const nextIndex = getRandomPuzzleIndex(session.puzzleIndex);
   const nextPuzzle = getPuzzle(nextIndex);
   const title = getTitle(stats.solved);
 
-  const text =
-    `✅ *Розв’язано!*\n\n${puzzle.explanation}${milestone}\n\n` +
-    `📊 Серія: *${stats.streak}* · Рекорд: *${stats.bestStreak}*\n` +
-    `Звання: ${title}\n\n` +
-    `➡️ Наступна: *${nextPuzzle.title}*`;
-
   session.puzzleIndex = nextIndex;
   session.puzzleStep = 0;
 
-  await ctx.editMessageText(text, {
-    parse_mode: 'Markdown',
-    ...ui.getPuzzleSolvedMenu(nextIndex),
-  });
+  await ctx.editMessageText(
+    `✅ *Розв’язано!*\n\n${puzzle.explanation}\n\n` +
+      `📊 Серія: *${stats.streak}* · ⭐ +${xpGain} XP\n` +
+      `➡️ Наступна: *${nextPuzzle.title}*`,
+    { parse_mode: 'Markdown', ...ui.getPuzzleSolvedMenu(nextIndex) }
+  );
+}
+
+function rushTimeLeft(session) {
+  const sec = Math.max(0, Math.ceil((session.rushEnd - Date.now()) / 1000));
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+}
+
+async function finishRush(ctx, userId, session) {
+  const score = session.rushScore || 0;
+  const p = profile.getProfile(userId);
+  if (score > (p.stats.rushBest || 0)) p.stats.rushBest = score;
+  const xp = score * 10;
+  profile.addXp(userId, xp, ctx);
+  session.mode = 'menu';
+  await ctx.editMessageText(
+    `⏱️ *Час вийшов!*\n\n🔥 Розв’язано: *${score}*\n🏆 Рекорд: *${p.stats.rushBest}*\n⭐ +${xp} XP`,
+    {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback('🔄 Ще раз', 'menu:rush')],
+        [Markup.button.callback('◀️ Меню', 'back:menu')],
+      ]),
+    }
+  );
 }
 
 async function showHint(ctx, userId) {
   const session = store.getSession(userId);
-  const puzzle = getPuzzle(session.puzzleIndex);
+  const puzzle = getActivePuzzle(session);
 
   if (session.puzzleHintUsed) {
     await ctx.answerCbQuery('Підказку вже використано.');

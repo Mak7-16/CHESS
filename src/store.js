@@ -1,3 +1,5 @@
+const { Chess } = require('chess.js');
+
 const sessions = new Map();
 const games = new Map();
 const matchQueue = [];
@@ -94,6 +96,9 @@ function getOpponent(game, userId) {
 }
 
 function userColor(game, userId) {
+  if (game.mode === 'hotseat') {
+    return new Chess(game.fen).turn();
+  }
   if (game.white === userId) return 'w';
   if (game.black === userId) return 'b';
   return null;

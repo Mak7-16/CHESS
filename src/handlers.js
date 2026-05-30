@@ -4,6 +4,9 @@ const { LESSONS, getLesson } = require('./lessons');
 const gameModule = require('./game');
 const puzzleModule = require('./puzzle');
 const { getTitle } = require('./puzzles');
+const { registerFeatures } = require('./features');
+const { getProfile, getLevelInfo } = require('./profile');
+const { startOnlineGame } = require('./online');
 
 async function safeAnswer(ctx, text) {
   try {
@@ -21,8 +24,12 @@ function registerHandlers(bot) {
   bot.start(async (ctx) => {
     const name = ctx.from.first_name || 'друже';
     store.resetSession(ctx.from.id);
+    const p = getProfile(ctx.from.id, ctx.from.username);
+    const lvl = getLevelInfo(p.xp);
     await ctx.reply(
-      `♟️ *Привіт, ${name}!*\n\nЯ шаховий бот з уроками, загадками, грою з ШІ та онлайн-матчами.`,
+      `♟️ *Привіт, ${name}!*\n\n` +
+        `Твій рівень: ${lvl.emoji} ${lvl.name}\n\n` +
+        `🎮 Ігри · 📋 Квести · 🎡 Колесо · ⏱️ Бліц · 🏛 Легенди · 👥 2 гравці`,
       { parse_mode: 'Markdown', ...ui.getMainMenu() }
     );
   });
@@ -116,8 +123,10 @@ function registerHandlers(bot) {
         '• Натисніть фігуру, потім клітинку призначення.\n' +
         '• /menu — головне меню.\n' +
         '• Уроки — теорія з прикладами.\n' +
-        '• Загадки — тактика з серіями і званнями.\n' +
-        '• Онлайн — пошук живого суперника.',
+        '• Квести, колесо удачі, бліц загадки.\n' +
+        '• Легендарні партії, ендшпіль, нотація.\n' +
+        '• Виклик друга: /challenge та /join КОД.\n' +
+        '• 2 гравці на одному телефоні.',
       { parse_mode: 'Markdown', ...ui.getMainMenu() }
     );
   });
@@ -187,12 +196,21 @@ function registerHandlers(bot) {
   });
 
   bot.action(/^psq:([a-h][1-8])$/, async (ctx) => {
-    await puzzleModule.handlePuzzleSquare(ctx, ctx.from.id, ctx.match[1]);
+    const session = store.getSession(ctx.from.id);
+    if (['puzzle', 'endgame', 'rush'].includes(session.mode)) {
+      await puzzleModule.handlePuzzleSquare(ctx, ctx.from.id, ctx.match[1]);
+    }
   });
 
   bot.action(/^sq:([a-h][1-8])$/, async (ctx) => {
     await gameModule.handleSquareClick(ctx, ctx.from.id, ctx.match[1]);
   });
+
+  bot.action('game:hint', async (ctx) => {
+    await gameModule.showHint(ctx, ctx.from.id);
+  });
+
+  registerFeatures(bot, { safeAnswer });
 
   bot.action('game:resign', async (ctx) => {
     const userId = ctx.from.id;
@@ -241,35 +259,4 @@ function registerHandlers(bot) {
   });
 }
 
-async function startOnlineGame(ctx, game) {
-  const whiteSession = store.getSession(game.white);
-  const blackSession = store.getSession(game.black);
-  whiteSession.mode = 'playing';
-  blackSession.mode = 'playing';
-  whiteSession.gameId = game.id;
-  blackSession.gameId = game.id;
-  whiteSession.selectedSquare = null;
-  blackSession.selectedSquare = null;
-  whiteSession.boardMessageId = null;
-  blackSession.boardMessageId = null;
-
-  await gameModule.updateBoardForUser(ctx, game, game.white);
-  await gameModule.updateBoardForUser(ctx, game, game.black);
-
-  await ctx.telegram.sendMessage(
-    game.white,
-    `🎮 Гра почалась! Ви граєте *білими*.`,
-    { parse_mode: 'Markdown' }
-  );
-  await ctx.telegram.sendMessage(
-    game.black,
-    `🎮 Гра почалась! Ви граєте *чорними*.`,
-    { parse_mode: 'Markdown' }
-  );
-
-  if (ctx.from.id === game.white || ctx.from.id === game.black) {
-    await ctx.editMessageText('✅ Суперника знайдено! Гра почалась.', ui.getMainMenu());
-  }
-}
-
-module.exports = { registerHandlers, startOnlineGame };
+module.exports = { registerHandlers };

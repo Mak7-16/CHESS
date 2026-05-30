@@ -51,11 +51,46 @@ function renderBoard(fen, perspective = 'w', selectedSquare = null) {
 
 function getMainMenu() {
   return Markup.inlineKeyboard([
-    [Markup.button.callback('🧩 Шахові загадки', 'menu:puzzles')],
-    [Markup.button.callback('📚 Уроки', 'menu:lessons')],
-    [Markup.button.callback('🤖 Гра з ботом', 'menu:bot')],
-    [Markup.button.callback('🌐 Гра онлайн', 'menu:online')],
+    [Markup.button.callback('🎮 Ігри', 'menu:games'), Markup.button.callback('📚 Навчання', 'menu:learn')],
+    [Markup.button.callback('👤 Профіль', 'menu:profile'), Markup.button.callback('📋 Квести', 'menu:quests')],
+    [Markup.button.callback('🎡 Колесо', 'menu:wheel'), Markup.button.callback('📆 Серія входів', 'menu:streak')],
+    [Markup.button.callback('🏆 Рейтинг', 'menu:leaderboard'), Markup.button.callback('💡 Факти', 'menu:facts')],
     [Markup.button.callback('ℹ️ Допомога', 'menu:help')],
+  ]);
+}
+
+function getGamesMenu() {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('🧩 Загадки', 'menu:puzzles'), Markup.button.callback('⏱️ Бліц 2 хв', 'menu:rush')],
+    [Markup.button.callback('⚡ Полювання', 'menu:survival'), Markup.button.callback('🎯 Вгадай хід', 'menu:guess')],
+    [Markup.button.callback('👥 2 на 1 телефоні', 'menu:hotseat'), Markup.button.callback('🤝 Виклик (/join)', 'menu:challenge')],
+    [Markup.button.callback('🤖 Бот', 'menu:bot'), Markup.button.callback('🌐 Онлайн', 'menu:online')],
+    [Markup.button.callback('◀️ Меню', 'back:menu')],
+  ]);
+}
+
+function getLearnMenu() {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('📚 Уроки', 'menu:lessons'), Markup.button.callback('📖 Дебюти', 'menu:openings')],
+    [Markup.button.callback('🏛 Легенди', 'menu:famous'), Markup.button.callback('👑 Ендшпіль', 'menu:endgames')],
+    [Markup.button.callback('📝 Нотація', 'menu:notation'), Markup.button.callback('🧠 Вікторина', 'menu:quiz')],
+    [Markup.button.callback('📅 Загадка дня', 'menu:daily')],
+    [Markup.button.callback('◀️ Меню', 'back:menu')],
+  ]);
+}
+
+function getProfileMenu() {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('🏆 Рейтинг', 'menu:leaderboard')],
+    [Markup.button.callback('◀️ Меню', 'back:menu')],
+  ]);
+}
+
+function getFactsMenu() {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('🎲 Випадковий факт', 'fact:random')],
+    [Markup.button.callback('♟️ Порада тренера', 'fact:tip')],
+    [Markup.button.callback('◀️ Меню', 'back:menu')],
   ]);
 }
 
@@ -160,7 +195,7 @@ function getLessonsList(lessons) {
   return Markup.inlineKeyboard(rows);
 }
 
-function getBoardKeyboard(fen, userColor, selectedSquare = null, canMove = true) {
+function getBoardKeyboard(fen, userColor, selectedSquare = null, canMove = true, showHint = false) {
   const chess = new Chess(fen);
   const board = chess.board();
   const turn = chess.turn();
@@ -188,10 +223,14 @@ function getBoardKeyboard(fen, userColor, selectedSquare = null, canMove = true)
     rows.push(rowButtons);
   }
 
-  rows.push([
+  const bottom = [
     Markup.button.callback('🏳️ Здатися', 'game:resign'),
     Markup.button.callback('🏠 Меню', 'game:exit'),
-  ]);
+  ];
+  if (showHint) {
+    rows.push([Markup.button.callback('💡 Підказка ходу', 'game:hint')]);
+  }
+  rows.push(bottom);
 
   return Markup.inlineKeyboard(rows);
 }
@@ -225,6 +264,10 @@ module.exports = {
   squareToIdx,
   renderBoard,
   getMainMenu,
+  getGamesMenu,
+  getLearnMenu,
+  getProfileMenu,
+  getFactsMenu,
   getPuzzleMenu,
   getPuzzleSolvedMenu,
   getPuzzleKeyboard,
