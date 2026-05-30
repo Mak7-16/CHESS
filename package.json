@@ -1,0 +1,14 @@
+{
+  "name": "chess-telegram-bot",
+  "version": "1.0.0",
+  "description": "Шаховий Telegram-бот з уроками, грою з ШІ та онлайн-матчами",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "chess.js": "^1.4.0",
+    "dotenv": "^17.2.3",
+    "telegraf": "^4.16.3"
+  }
+}
