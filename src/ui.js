@@ -55,7 +55,22 @@ function getMainMenu() {
     [Markup.button.callback('👤 Профіль', 'menu:profile'), Markup.button.callback('📋 Квести', 'menu:quests')],
     [Markup.button.callback('🎡 Колесо', 'menu:wheel'), Markup.button.callback('📆 Серія входів', 'menu:streak')],
     [Markup.button.callback('🏆 Рейтинг', 'menu:leaderboard'), Markup.button.callback('💡 Факти', 'menu:facts')],
+    [Markup.button.callback('✨ Ще фічі', 'menu:extra')],
     [Markup.button.callback('ℹ️ Допомога', 'menu:help')],
+  ]);
+}
+
+function getExtraMenu() {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('⚔️ Хто виграє обмін?', 'menu:trades')],
+    [Markup.button.callback('🤔 Кращий хід', 'menu:compare')],
+    [Markup.button.callback('🃏 Картки фігур', 'menu:flash')],
+    [Markup.button.callback('📊 Аналіз позиції', 'menu:analyze')],
+    [Markup.button.callback('🏟 Міні-турнір', 'menu:tournament')],
+    [Markup.button.callback('🧠 Пам’ять', 'menu:memory')],
+    [Markup.button.callback('🛒 Магазин титулів', 'menu:shop')],
+    [Markup.button.callback('🏅 Досягнення', 'menu:achievements')],
+    [Markup.button.callback('◀️ Меню', 'back:menu')],
   ]);
 }
 
@@ -82,6 +97,8 @@ function getLearnMenu() {
 function getProfileMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback('🏆 Рейтинг', 'menu:leaderboard')],
+    [Markup.button.callback('🏅 Досягнення', 'menu:achievements')],
+    [Markup.button.callback('🛒 Магазин', 'menu:shop')],
     [Markup.button.callback('◀️ Меню', 'back:menu')],
   ]);
 }
@@ -267,6 +284,7 @@ module.exports = {
   getGamesMenu,
   getLearnMenu,
   getProfileMenu,
+  getExtraMenu,
   getFactsMenu,
   getPuzzleMenu,
   getPuzzleSolvedMenu,

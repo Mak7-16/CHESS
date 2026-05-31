@@ -39,6 +39,8 @@ function defaultProfile() {
     wheelLast: null,
     loginLast: null,
     loginStreak: 0,
+    ownedTitles: ['t_rookie'],
+    equippedTitle: 't_rookie',
   };
 }
 
@@ -138,6 +140,8 @@ function getLeaderboard(limit = 10) {
 
 function formatProfile(userId, username) {
   const p = getProfile(userId);
+  const shop = require('./shop');
+  const title = shop.displayTitle(p);
   const lvl = getLevelInfo(p.xp);
   const bar = '█'.repeat(Math.floor(lvl.progress / 10)) + '░'.repeat(10 - Math.floor(lvl.progress / 10));
   const achList =
@@ -146,7 +150,8 @@ function formatProfile(userId, username) {
       : p.achievements.map((k) => ACHIEVEMENTS[k]?.icon || '🏅').join(' ');
 
   return (
-    `👤 *Профіль* ${username ? `@${username}` : ''}\n\n` +
+    `👤 *Профіль* ${username ? `@${username}` : ''}\n` +
+    `🎖 Титул: ${title}\n\n` +
     `${lvl.emoji} *${lvl.name}* · ${p.xp} XP\n` +
     `${bar} ${lvl.progress}%\n\n` +
     `📊 *Статистика:*\n` +

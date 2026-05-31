@@ -11,6 +11,7 @@ const challenge = require('./challenge');
 const { getPuzzle, getRandomPuzzleIndex } = require('./puzzles');
 const gameModule = require('./game');
 const { startOnlineGame } = require('./online');
+const { registerExtraFeatures } = require('./extraFeatures');
 
 const WHEEL_PRIZES = [15, 25, 35, 50, 75, 100, 10, 20];
 
@@ -288,6 +289,8 @@ function registerMoreFeatures(bot, { safeAnswer }) {
     await ctx.reply('🎮 Ви в грі! Перевір повідомлення з дошкою.');
     await ctx.telegram.sendMessage(result.host, `🎮 Суперник приєднався за кодом ${code}!`);
   });
+
+  registerExtraFeatures(bot, { safeAnswer });
 
   bot.action('menu:streak', async (ctx) => {
     await safeAnswer(ctx);
